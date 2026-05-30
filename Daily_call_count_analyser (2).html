@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Call Count Analyzer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f5f5f3; color: #1a1a18; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 2rem 1rem; }
+  .container { width: 100%; max-width: 680px; }
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #888780; margin-bottom: 1.5rem; }
+  .drop-zone { border: 1.5px dashed #ccc; border-radius: 12px; padding: 2.5rem; text-align: center; cursor: pointer; transition: background 0.15s; background: #fff; }
+  .drop-zone:hover, .drop-zone.drag-over { background: #f1efe8; }
+  .drop-icon { font-size: 28px; margin-bottom: 8px; color: #888; }
+  .drop-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  .drop-sub { font-size: 13px; color: #888780; }
+  .section-header { font-size: 11px; font-weight: 500; color: #888780; text-transform: uppercase; letter-spacing: 0.05em; margin: 1.5rem 0 8px; }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .metric-card { background: #f1efe8; border-radius: 8px; padding: 1rem; }
+  .metric-label { font-size: 12px; color: #5f5e5a; margin-bottom: 4px; }
+  .metric-value { font-size: 30px; font-weight: 500; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 500; }
+  .badge-blue { background: #E6F1FB; color: #0C447C; }
+  .badge-green { background: #EAF3DE; color: #27500A; }
+  .badge-red { background: #FCEBEB; color: #791F1F; }
+  .badge-amber { background: #FAEEDA; color: #633806; }
+  .badge-purple { background: #EEEDFE; color: #3C3489; }
+  .badge-teal { background: #E1F5EE; color: #085041; }
+  .copy-box { margin-top: 1.5rem; border: 0.5px solid #ddd; border-radius: 8px; padding: 1rem; background: #fff; }
+  .copy-label { font-size: 12px; color: #888780; margin-bottom: 8px; }
+  pre { font-size: 13px; font-family: 'Menlo', 'Courier New', monospace; color: #1a1a18; margin-bottom: 10px; white-space: pre-wrap; line-height: 1.7; }
+  button.copy-btn { font-size: 13px; padding: 6px 14px; border-radius: 8px; cursor: pointer; border: 0.5px solid #bbb; background: transparent; color: #1a1a18; transition: background 0.1s; }
+  button.copy-btn:hover { background: #f1efe8; }
+  .reset-btn { font-size: 12px; color: #888780; background: none; border: none; cursor: pointer; text-decoration: underline; }
+  .file-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .file-name { font-weight: 500; font-size: 15px; }
+  .total-rows { font-size: 13px; color: #888780; margin-left: 8px; }
+  #error-msg { color: #a32d2d; font-size: 13px; margin-top: 8px; display: none; }
+  #results-section { display: none; }
+  #copied-msg { font-size: 12px; color: #3b6d11; margin-left: 8px; display: none; }
+  .sop-note { font-size: 12px; color: #888780; margin-top: 1rem; line-height: 1.6; border-left: 2px solid #ddd; padding-left: 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Daily Call Count Analyzer</h1>
+  <p class="subtitle">MightyCall CSV → call counts in one click</p>
+
+  <div id="upload-section">
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="drop-icon">&#8593;</div>
+      <p class="drop-title">Upload your MightyCall CSV</p>
+      <p class="drop-sub">Click to browse or drag & drop</p>
+      <input type="file" id="file-input" accept=".csv" style="display:none;">
+    </div>
+    <p id="error-msg"></p>
+    <div class="sop-note">
+      <strong>Reminder:</strong> Monday — select 12:00 AM–6:00 AM PST (single date).<br>
+      Tue–Fri — select previous day 5:00 PM to current day 6:00 AM.
+    </div>
+  </div>
+
+  <div id="results-section">
+    <div class="file-info">
+      <div>
+        <span class="file-name" id="file-name"></span>
+        <span class="total-rows" id="total-rows"></span>
+      </div>
+      <button class="reset-btn" onclick="resetTool()">Upload another file</button>
+    </div>
+
+    <div class="section-header">Steps 2 &amp; 3 — Direction</div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-blue">Inbound calls</span></div>
+        <div class="metric-value" id="val-inbound">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-teal">Outbound calls</span></div>
+        <div class="metric-value" id="val-outbound">0</div>
+      </div>
+    </div>
+
+    <div class="section-header">Steps 4–7 — Incoming calls only</div>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-green">Live calls</span></div>
+        <div class="metric-value" id="val-live">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-red">Missed calls</span></div>
+        <div class="metric-value" id="val-missed">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-amber">Dropped calls</span></div>
+        <div class="metric-value" id="val-dropped">0</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label"><span class="badge badge-purple">Voicemail</span></div>
+        <div class="metric-value" id="val-voicemail">0</div>
+      </div>
+    </div>
+
+    <div class="copy-box">
+      <div class="copy-label">Ready to paste</div>
+      <pre id="copy-text"></pre>
+      <button class="copy-btn" onclick="copyToClipboard()">Copy to clipboard</button>
+      <span id="copied-msg">Copied!</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+function handleFile(file) {
+  if (!file || !file.name.endsWith('.csv')) { showError('Please upload a .csv file.'); return; }
+  const reader = new FileReader();
+  reader.onload = e => processCSV(e.target.result, file.name);
+  reader.readAsText(file);
+}
+
+function processCSV(text, fileName) {
+  const allLines = text.split('\n');
+
+  // Find header row dynamically — works regardless of how many metadata rows MightyCall includes
+  let headerIdx = -1;
+  for (let i = 0; i < allLines.length; i++) {
+    if (allLines[i].includes('CallStartTime')) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) { showError('Could not find the data header row. Check the file format.'); return; }
+
+  const dataLines = allLines.slice(headerIdx + 1).filter(l => l.trim().length > 0);
+  if (dataLines.length === 0) { showError('No data rows found in the file.'); return; }
+
+  let inbound = 0, outbound = 0, live = 0, missed = 0, dropped = 0, voicemail = 0, total = 0;
+
+  for (const line of dataLines) {
+    const cols = parseRow(line);
+    if (cols.length < 4) continue;
+    total++;
+    const dir = cols[2].trim();
+    const res = cols[3].trim();
+
+    if (dir === 'Outgoing') outbound++;
+    if (dir === 'Incoming') {
+      inbound++;
+      // Steps 4-7: only count result types for incoming rows
+      if (res === 'Connected') live++;
+      if (res === 'Missed') missed++;
+      if (res === 'Dropped') dropped++;
+      if (res === 'VoiceMail') voicemail++;
+    }
+  }
+
+  document.getElementById('upload-section').style.display = 'none';
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('file-name').textContent = fileName;
+  document.getElementById('total-rows').textContent = total + ' calls';
+  document.getElementById('val-inbound').textContent = inbound;
+  document.getElementById('val-outbound').textContent = outbound;
+  document.getElementById('val-live').textContent = live;
+  document.getElementById('val-missed').textContent = missed;
+  document.getElementById('val-dropped').textContent = dropped;
+  document.getElementById('val-voicemail').textContent = voicemail;
+
+  document.getElementById('copy-text').textContent =
+    'Inbound calls: ' + inbound +
+    '\nMissed calls: ' + missed +
+    '\nOutbound calls: ' + outbound +
+    '\nDropped call: ' + dropped +
+    '\nVoice mails: ' + voicemail +
+    '\nLive calls: ' + live;
+}
+
+function parseRow(row) {
+  const result = [];
+  let inQuotes = false, current = '';
+  for (let i = 0; i < row.length; i++) {
+    if (row[i] === '"') { inQuotes = !inQuotes; }
+    else if (row[i] === ',' && !inQuotes) { result.push(current); current = ''; }
+    else { current += row[i]; }
+  }
+  result.push(current);
+  return result;
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function resetTool() {
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('results-section').style.display = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+  fileInput.value = '';
+}
+
+function copyToClipboard() {
+  navigator.clipboard.writeText(document.getElementById('copy-text').textContent).then(() => {
+    const msg = document.getElementById('copied-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => msg.style.display = 'none', 2000);
+  });
+}
+</script>
+</body>
+</html>
